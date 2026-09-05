@@ -16,7 +16,7 @@
 
 ---
 
-## 🧠 Core UX Decisions (what to say to judges)
+## 🧠 Core UX Decisions 
 
 1. **Triage, not just tracking.** Survivors are auto-scored `P = severity_weight − age_decay − hazard_proximity_penalty`.
    Critical ≠ highest priority forever — a stable survivor sitting next to a collapsing structure outranks an aging urgent case. This models real FEMA/INSARAG triage logic.
