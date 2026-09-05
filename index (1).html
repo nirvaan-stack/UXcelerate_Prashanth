@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOTERIA — Post-Earthquake Robot Coordination</title>
+<style>
+:root{
+  --bg:#0a0e14; --bg2:#0f1520; --panel:#121a28; --panel2:#182236;
+  --line:#1e2a3f; --txt:#dbe6f5; --dim:#7d8ca3; --faint:#4a5a74;
+  --acc:#38bdf8; --ok:#34d399; --warn:#fbbf24; --crit:#f87171; --haz:#fb923c;
+  --robot:#a78bfa;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--bg2);border-bottom:1px solid var(--line);z-index:5}
+.logo{font-weight:800;font-size:18px;letter-spacing:2px;color:var(--acc)}
+.logo span{color:var(--txt)}
+.tag{font-size:11px;color:var(--dim);border:1px solid var(--line);padding:3px 10px;border-radius:20px}
+.pill{font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:.5px}
+.pill.ok{background:rgba(52,211,153,.12);color:var(--ok);border:1px solid rgba(52,211,153,.4)}
+.pill.bad{background:rgba(248,113,113,.14);color:var(--crit);border:1px solid rgba(248,113,113,.5);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.55}}
+.spacer{flex:1}
+.clock{font-variant-numeric:tabular-nums;font-weight:600;color:var(--dim);font-size:13px}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.danger:hover{border-color:var(--crit);color:var(--crit)}
+main{flex:1;display:grid;grid-template-columns:300px 1fr 340px;min-height:0}
+aside{background:var(--panel);overflow-y:auto;border-right:1px solid var(--line)}
+aside.right{border-right:none;border-left:1px solid var(--line)}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.mapwrap{position:relative;background:#060a10}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:14px;bottom:14px;background:rgba(10,14,20,.85);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--dim);backdrop-filter:blur(6px)}
+.hud b{color:var(--txt)}
+.legend{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap}
+.lg{display:flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%}
+.toasts{position:absolute;top:14px;left:14px;display:flex;flex-direction:column;gap:8px;z-index:6;max-width:360px}
+.toast{background:rgba(18,26,40,.95);border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:9px 14px;font-size:12px;animation:slidein .3s ease;backdrop-filter:blur(6px)}
+.toast.crit{border-left-color:var(--crit)}
+.toast.warn{border-left-color:var(--warn)}
+.toast.ok{border-left-color:var(--ok)}
+@keyframes slidein{from{transform:translateX(-20px);opacity:0}}
+.rbt{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--bg2);cursor:pointer;transition:.15s}
+.rbt:hover,.rbt.sel{border-color:var(--robot);background:rgba(167,139,250,.06)}
+.rbt .ic{width:34px;height:34px;border-radius:9px;background:rgba(167,139,250,.14);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--robot);flex-shrink:0}
+.rbt .info{flex:1;min-width:0}
+.rbt .nm{font-size:13px;font-weight:700}
+.rbt .st{font-size:11px;color:var(--dim)}
+.bar{height:4px;background:var(--line);border-radius:3px;margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;transition:width .5s}
+.sig{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px}
+.sig.g{background:rgba(52,211,153,.14);color:var(--ok)}
+.sig.y{background:rgba(251,191,36,.14);color:var(--warn)}
+.sig.r{background:rgba(248,113,113,.14);color:var(--crit)}
+.surv{padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--bg2)}
+.surv .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.surv .id{font-size:13px;font-weight:700}
+.sev{font-size:10px;font-weight:800;padding:2px 9px;border-radius:6px;letter-spacing:.5px}
+.sev.c{background:rgba(248,113,113,.16);color:var(--crit)}
+.sev.u{background:rgba(251,191,36,.16);color:var(--warn)}
+.sev.s{background:rgba(52,211,153,.16);color:var(--ok)}
+.meta{font-size:11px;color:var(--dim);display:flex;justify-content:space-between;margin-bottom:8px}
+.meta b{color:var(--txt)}
+.pr{font-size:11px;color:var(--faint)}
+.pr b{font-size:13px}
+.disp{width:100%;margin-top:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.35);color:var(--acc);padding:6px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer}
+.disp:hover{background:rgba(56,189,248,.22)}
+.disp:disabled{opacity:.35;cursor:not-allowed}
+.qitem{font-size:11px;padding:8px 10px;border:1px dashed var(--warn);border-radius:8px;margin-bottom:6px;color:var(--warn);background:rgba(251,191,36,.05)}
+.log{font-size:11px;color:var(--dim);max-height:150px}
+.log div{padding:4px 0;border-bottom:1px solid rgba(30,42,63,.5)}
+.log b{color:var(--txt)}
+.tgl{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dim);padding:6px 0;cursor:pointer}
+.tgl input{accent-color:var(--acc);width:15px;height:15px;cursor:pointer}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.stat .v{font-size:20px;font-weight:800;color:var(--acc)}
+.stat .k{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (max-width:1000px){main{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">SOTERIA<span> ▲</span></div>
+  <span class="tag">MERCURY-7 SQUAD</span>
+  <span class="pill ok" id="commPill">LINK STABLE</span>
+  <span class="pill ok" id="simPill">SIM RUNNING</span>
+  <div class="spacer"></div>
+  <span class="clock" id="clock">T+00:00:00</span>
+  <button class="btn" id="btnComms" aria-label="Toggle degraded communications">📡 Simulate Comms Degradation</button>
+  <button class="btn" id="btnPause" aria-label="Pause or resume simulation">⏸ Pause</button>
+  <button class="btn danger" id="btnReset" aria-label="Reset simulation">↺ Reset</button>
+</header>
+
+<main>
+  <!-- LEFT: FLEET -->
+  <aside aria-label="Robot fleet status">
+    <div class="sec"><h3>🤖 Fleet Status</h3><div id="fleet"></div></div>
+    <div class="sec"><h3>📡 Command Queue <span id="qCount" style="color:var(--warn)"></span></h3><div id="queue"><div style="font-size:11px;color:var(--faint)">No pending commands.</div></div></div>
+    <div class="sec"><h3>🗺️ Map Layers</h3>
+      <label class="tgl"><span>Fog of war (unexplored)</span><input type="checkbox" id="lyFog" checked></label>
+      <label class="tgl"><span>Hazard overlays</span><input type="checkbox" id="lyHaz" checked></label>
+      <label class="tgl"><span>Robot trails</span><input type="checkbox" id="lyTrail" checked></label>
+      <label class="tgl"><span>Heatmap (survivor density)</span><input type="checkbox" id="lyHeat"></label>
+    </div>
+    <div class="sec"><h3>📜 Event Log</h3><div class="log" id="log"></div></div>
+  </aside>
+
+  <!-- CENTER: MAP -->
+  <div class="mapwrap">
+    <canvas id="map" aria-label="Tactical map of rescue operation area" role="img"></canvas>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+    <div class="hud" role="complementary" aria-label="Map legend and keyboard shortcuts">
+      <b>MAP LEGEND</b> — <span id="covTxt"></span>
+      <div class="legend">
+        <span class="lg"><span class="dot" style="background:var(--robot)"></span>Robot</span>
+        <span class="lg"><span class="dot" style="background:var(--crit)"></span>Critical survivor</span>
+        <span class="lg"><span class="dot" style="background:var(--warn)"></span>Urgent</span>
+        <span class="lg"><span class="dot" style="background:var(--ok)"></span>Stable</span>
+        <span class="lg"><span class="dot" style="background:var(--haz)"></span>Hazard</span>
+      </div>
+      <div style="margin-top:6px">Shortcuts: <b>Space</b> pause · <b>D</b> degrade comms · <b>Click survivor</b> to inspect</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: SURVIVORS -->
+  <aside class="right" aria-label="Survivor triage and tasking">
+    <div class="sec"><h3>📊 Mission Stats</h3>
+      <div class="stats">
+        <div class="stat"><div class="v" id="sFound">0</div><div class="k">Survivors Found</div></div>
+        <div class="stat"><div class="v" id="sResc">0</div><div class="k">Rescued</div></div>
+        <div class="stat"><div class="v" id="sHaz">0</div><div class="k">Hazards Mapped</div></div>
+        <div class="stat"><div class="v" id="sCov">0%</div><div class="k">Area Mapped</div></div>
+      </div>
+    </div>
+    <div class="sec"><h3>🎯 Triage Queue <span style="color:var(--faint)">(auto-prioritized)</span></h3><div id="survs"></div></div>
+  </aside>
+</main>
+
+<script>
+/* ============ SOTERIA CORE SIMULATION ============ */
+const G = 48;                 // grid size
+const grid = [];              // true = blocked (rubble/collapse)
+const known = [];             // explored by robots
+const heat = [];              // survivor density heatmap
+for(let y=0;y<G;y++){grid[y]=[];known[y]=[];heat[y]=[];for(let x=0;x<G;x++){
+  grid[y][x]=Math.random()<0.14 && !(x<6&&y<6); known[y][x]=false; heat[y][x]=0;}}
+// clear spawn corner
+for(let y=0;y<7;y++)for(let x=0;x<7;x++)grid[y][x]=false;
+
+let robots=[], survivors=[], hazards=[], pending=[], log=[], t=0, running=true, degraded=false;
+let selRobot=null, selSurv=null, seq=1;
+const COLORS={CRITICAL:'#f87171',URGENT:'#fbbf24',STABLE:'#34d399'};
+
+function bfs(sx,sy,tx,ty){ // A* via BFS avoiding blocked
+  if(grid[ty][tx])return null;
+  const prev={}, q=[[sx,sy]], seen=new Set([sx+','+sy]);
+  while(q.length){const [x,y]=q.shift();
+    if(x===tx&&y===ty){const path=[];let k=x+','+y;
+      while(k!==sx+','+sy){const [px,py]=k.split(',').map(Number);path.unshift([px,py]);k=prev[k];}
+      return path;}
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx,ny=y+dy,key=nx+','+ny;
+      if(nx<0||ny<0||nx>=G||ny>=G||grid[ny][nx]||seen.has(key))continue;
+      seen.add(key);prev[key]=x+','+y;q.push([nx,ny]);}}
+  return null;}
+
+function newTask(r){ // exploration: head to nearest unknown cell
+  let best=null,bd=1e9;
+  for(let i=0;i<40;i++){const x=(Math.random()*G)|0,y=(Math.random()*G)|0;
+    if(!known[y][x]&&!grid[y][x]){const d=Math.abs(x-r.x)+Math.abs(y-r.y);if(d<bd){bd=d;best=[x,y];}}}
+  if(best) r.path=bfs(r.x,r.y,best[0],best[1])||[];}
+
+function init(){
+  robots=[{n:'ATLAS-1',ic:'🛞',x:2,y:2,bat:100,st:'EXPLORING',path:[],task:null,trail:[[2,2]],last:0},
+          {n:'BRAVO-2',ic:'🦿',x:3,y:2,bat:100,st:'EXPLORING',path:[],task:null,trail:[[3,2]],last:0},
+          {n:'CERES-3',ic:'🚁',x:2,y:3,bat:100,st:'EXPLORING',path:[],task:null,trail:[[2,3]],last:0},
+          {n:'DELTA-4',ic:'🤖',x:4,y:3,bat:100,st:'EXPLORING',path:[],task:null,trail:[[4,3]],last:0}];
+  robots.forEach(r=>known[r.y][r.x]=true);
+  survivors=[];hazards=[];pending=[];log=[];t=0;seq=1;selRobot=null;selSurv=null;
+  addLog('Mission started — <b>MERCURY-7</b> squad deployed','ok');
+  toast('🚀 Mission start: 4 robots deployed to collapsed district','ok');
+}
+
+function exploreAround(r,rad){
+  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
+    const nx=r.x+dx,ny=r.y+dy;
+    if(nx>=0&&ny>=0&&nx<G&&ny<G)known[ny][nx]=true;}}
+
+function maybeDiscover(r){
+  if(Math.random()>0.05)return;
+  const roll=Math.random();
+  if(roll<0.42){ // survivor
+    const sev=Math.random()<0.3?'CRITICAL':Math.random()<0.6?'URGENT':'STABLE';
+    const s={id:'SV-'+String(seq++).padStart(3,'0'),x:r.x+(Math.random()<.5?-1:1),y:r.y+(Math.random()<.5?-1:1),sev,age:0,st:'AWAITING',robot:null};
+    s.x=Math.max(1,Math.min(G-2,s.x));s.y=Math.max(1,Math.min(G-2,s.y));
+    if(grid[s.y][s.x]){s.x=r.x;s.y=r.y;}
+    survivors.push(s);
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const ny=s.y+dy,nx=s.x+dx;
+      if(nx>=0&&ny>=0&&nx<G&&ny<G)heat[ny][nx]=Math.min(1,heat[ny][nx]+.5);}
+    toast(`⛑️ <b>${s.id}</b> discovered — ${sev} (${r.n})`,sev==='CRITICAL'?'crit':'warn');
+    addLog(`<b>${s.id}</b> discovered by ${r.n} — ${sev}`,'');
+    if(degraded)pending.push({kind:'DISCOVERY',txt:`Relay discovery: ${s.id} (${sev})`});
+  } else if(roll<0.72){ // hazard
+    const hz={x:r.x,y:r.y,type:Math.random()<.5?'STRUCTURAL COLLAPSE':'GAS LEAK'};
+    hazards.push(hz);
+    toast(`⚠️ ${hz.type} mapped at sector ${String.fromCharCode(65+(hz.y/8|0))}-${hz.x}`,'warn');
+    addLog(`Hazard: ${hz.type} @ (${hz.x},${hz.y})`,'warn');
+    // mark nearby cells impassable = "new structural hazard"
+    for(let i=0;i<3;i++){const nx=Math.min(G-1,Math.max(0,hz.x+((Math.random()*3)|0)-1)),ny=Math.min(G-1,Math.max(0,hz.y+((Math.random()*3)|0)-1));grid[ny][nx]=true;}
+  } else { // new accessible route!
+    let cleared=0;
+    for(let i=0;i<6;i++){const nx=(Math.random()*G)|0,ny=(Math.random()*G)|0;if(grid[ny][nx]){grid[ny][nx]=false;cleared++;}}
+    if(cleared){toast(`🛤️ ${r.n} discovered a new accessible route (${cleared} cells cleared)`,'ok');
+      addLog(`New route mapped by <b>${r.n}</b>`,'ok');}
+  }
+}
+
+function priority(s){ // triage score: severity weight decays with age, hazard proximity penalty
+  const w={CRITICAL:300,URGENT:180,STABLE:90}[s.sev];
+  let p=w - s.age*0.8;
+  hazards.forEach(h=>{const d=Math.abs(h.x-s.x)+Math.abs(h.y-s.y);if(d<5)p-= (5-d)*15;});
+  return Math.max(1,Math.round(p));}
+
+function dispatch(sid){
+  const s=survivors.find(v=>v.id===sid); if(!s||s.st!=='AWAITING')return;
+  // nearest robot by path length (not euclidean — paths may be blocked!)
+  let best=null,bp=null;
+  robots.forEach(r=>{if(r.bat<20)return;const p=bfs(r.x,r.y,s.x,s.y);
+    if(p&&(!bp||p.length<bp.length)){bp=p;best=r;}});
+  if(!best){toast('❌ No reachable robot — all paths blocked or battery low','crit');return;}
+  const cmd={kind:'DISPATCH',txt:`${best.n} → rescue ${s.id}`,exec:()=>{
+    best.task=s;s.st='ASSIGNED';s.robot=best.n;best.st='RESCUING';best.path=bp;
+    toast(`🎯 ${best.n} dispatched to <b>${s.id}</b> (route ${bp.length} cells)`,'ok');
+    addLog(`<b>${best.n}</b> → ${s.id} assigned`,'ok');}};
+  if(degraded){pending.push(cmd);toast(`📡 Link degraded — command queued: ${cmd.txt}`,'warn');}
+  else cmd.exec();
+  renderSurvivors();
+}
+
+function tick(){
+  t++;
+  robots.forEach(r=>{
+    if(r.bat<=0){r.st='BATTERY DEAD';return;}
+    r.bat=Math.max(0,r.bat-0.03);
+    // movement with comms unreliability: degraded = robots act on stale orders / lag
+    if(r.path.length){
+      if(degraded&&Math.random()<0.35){r.st='SIGNAL LOST — HOLDING';r.last=t;return;}
+      r.st=r.task?'RESCUING':'EXPLORING';
+      const [nx,ny]=r.path.shift();r.x=nx;r.y=ny;r.trail.push([nx,ny]);if(r.trail.length>60)r.trail.shift();
+      exploreAround(r,r.task?1:2);maybeDiscover(r);
+      if(r.task&&r.x===r.task.x&&r.y===r.task.y){ // reached survivor → evac back to base
+        r.task.st='RESCUED';toast(`✅ <b>${r.task.id}</b> secured by ${r.n} — evacuating to base`,'ok');
+        addLog(`<b>${r.task.id}</b> RESCUED by ${r.n}`,'ok');r.task=null;
+        r.path=bfs(r.x,r.y,2,2)||[];
+        r.st='EVAC → BASE';
+        if(r.bat<40)toast(`🔋 ${r.n} battery ${r.bat|0}% — recommend recharge cycle`,'warn');
+      }
+    } else if(r.st==='EVAC → BASE'||r.st.startsWith('SIGNAL')){ // arrived at base
+      if(r.x<=3&&r.y<=3){r.st='EXPLORING';if(r.bat<55){r.bat=Math.min(100,r.bat+25);addLog(`${r.n} recharging @ base`,'');}}
+      if(r.bat<100&&r.x<=3&&r.y<=3)r.bat=Math.min(100,r.bat+0.4);
+      newTask(r);
+    } else newTask(r);
+  });
+  survivors.forEach(s=>s.age++);
+  // flush pending queue when link recovers
+  if(!degraded&&pending.length){
+    const c=pending.shift();c.exec?c.exec():addLog(c.txt,'warn');
+    if(!pending.length)toast('📡 Command queue flushed — link restored','ok');
+  }
+  if(t%120===0&&pending.length)toast(`📡 ${pending.length} command(s) queued — awaiting uplink`,'warn');
+  if(t%300===0)toast(`🛰️ Aerial sweep: area coverage ${coverage()}%`,'ok');
+  updateHUD();
+}
+
+function coverage(){let k=0,tot=0;for(let y=0;y<G;y++)for(let x=0;x<G;x++){tot++;if(known[y][x])k++;}return Math.round(k/tot*100);}
+
+/* ---------- RENDER ---------- */
+const cv=document.getElementById('map'),cx=cv.getContext('2d');
+function fit(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;cx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+addEventListener('resize',fit);
+
+function draw(){
+  const W=cv.clientWidth,H=cv.clientHeight,cell=Math.max(W,H)/G,ox=(W-cell*G)/2,oy=(H-cell*G)/2;
+  cx.clearRect(0,0,W,H);
+  cx.fillStyle='#060a10';cx.fillRect(0,0,W,H);
+  const fog=document.getElementById('lyFog').checked,hz=document.getElementById('lyHaz').checked,
+        tr=document.getElementById('lyTrail').checked,hm=document.getElementById('lyHeat').checked;
+  for(let y=0;y<G;y++)for(let x=0;x<G;x++){
+    const px=ox+x*cell,py=oy+y*cell;
+    if(fog&&!known[y][x]){cx.fillStyle='#0a0f18';cx.fillRect(px,py,cell,cell);continue;}
+    cx.fillStyle=grid[y][x]?'#232c3d':'#101827';
+    cx.fillRect(px,py,cell,cell);
+    if(hm&&heat[y][x]>0.05){cx.fillStyle=`rgba(251,113,133,${heat[y][x]*0.35})`;cx.fillRect(px,py,cell,cell);}
+    if(grid[y][x]&&hz){cx.strokeStyle='#3a4560';cx.strokeRect(px+1,py+1,cell-2,cell-2);}
+  }
+  // base
+  cx.fillStyle='rgba(56,189,248,.15)';cx.fillRect(ox,oy,cell*6,cell*6);
+  cx.strokeStyle='#38bdf8';cx.setLineDash([4,3]);cx.strokeRect(ox,oy,cell*6,cell*6);cx.setLineDash([]);
+  cx.fillStyle='#38bdf8';cx.font=`bold ${Math.max(9,cell*0.5)}px sans-serif`;cx.fillText('BASE',ox+4,oy+cell+2);
+  // trails
+  if(tr)robots.forEach(r=>{cx.strokeStyle='rgba(167,139,250,.35)';cx.beginPath();
+    r.trail.forEach(([x,y],i)=>i?cx.lineTo(ox+x*cell+cell/2,oy+y*cell+cell/2):cx.moveTo(ox+x*cell+cell/2,oy+y*cell+cell/2));cx.stroke();});
+  // hazards
+  if(hz)hazards.forEach(h=>{cx.fillStyle='#fb923c';cx.font=`${cell*0.9}px sans-serif`;cx.textAlign='center';
+    cx.fillText('⚠',ox+h.x*cell+cell/2,oy+h.y*cell+cell*0.95);cx.textAlign='left';});
+  // survivors (pulsing rings; color + ring style so colorblind users get shape cues too)
+  survivors.forEach(s=>{if(s.st==='RESCUED')return;const px=ox+s.x*cell+cell/2,py=oy+s.y*cell+cell/2;
+    const pulse=s.st==='AWAITING'?2+Math.sin(Date.now()/200)*1.5:0;
+    cx.strokeStyle=COLORS[s.sev];cx.lineWidth=s.sev==='CRITICAL'?3:1.5;
+    cx.setLineDash(s.sev==='STABLE'?[3,3]:s.sev==='URGENT'?[6,3]:[]);
+    cx.beginPath();cx.arc(px,py,cell*0.55+pulse,0,7);cx.stroke();cx.setLineDash([]);
+    cx.fillStyle=COLORS[s.sev];cx.beginPath();cx.arc(px,py,cell*0.3,0,7);cx.fill();cx.lineWidth=1;
+    if(selSurv===s.id){cx.strokeStyle='#fff';cx.beginPath();cx.arc(px,py,cell*0.9,0,7);cx.stroke();}});
+  // robots
+  robots.forEach(r=>{const px=ox+r.x*cell+cell/2,py=oy+r.y*cell+cell/2;
+    cx.fillStyle=r.st.startsWith('SIGNAL')?'#4a5a74':'#a78bfa';
+    cx.save();cx.translate(px,py);cx.rotate(Math.atan2(1,1));
+    cx.beginPath();cx.moveTo(0,-cell*0.5);cx.lineTo(cell*0.4,cell*0.35);cx.lineTo(-cell*0.4,cell*0.35);cx.closePath();cx.fill();cx.restore();
+    if(selRobot===r.n){cx.strokeStyle='#fff';cx.beginPath();cx.arc(px,py,cell*0.8,0,7);cx.stroke();}
+    if(degraded){cx.fillStyle='#f87171';cx.font=`${cell*0.7}px sans-serif`;cx.textAlign='center';cx.fillText('✕',px,py-cell);cx.textAlign='left';}});
+}
+
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+function toast(msg,cls=''){const d=document.createElement('div');d.className='toast '+cls;d.innerHTML=msg;
+  $('toasts').appendChild(d);setTimeout(()=>{d.style.opacity=0;d.style.transition='opacity .5s';setTimeout(()=>d.remove(),500);},4200);}
+function addLog(txt,cls){log.unshift(`<div>${cls==='ok'?'🟢':cls==='warn'?'🟡':'·'} ${txt} <span style="float:right;color:var(--faint)">T+${t}s</span></div>`);
+  if(log.length>40)log.pop();$('log').innerHTML=log.join('');}
+
+function updateHUD(){
+  $('sFound').textContent=survivors.length;
+  $('sResc').textContent=survivors.filter(s=>s.st==='RESCUED').length;
+  $('sHaz').textContent=hazards.length;
+  $('sCov').textContent=coverage()+'%';
+  $('covTxt').textContent=`Coverage: ${coverage()}%`;
+  $('qCount').textContent=pending.length?`(${pending.length})`:'';
+  $('commPill').textContent=degraded?'LINK DEGRADED':'LINK STABLE';
+  $('commPill').className='pill '+(degraded?'bad':'ok');
+  $('queue').innerHTML=pending.length?pending.map(p=>`<div class="qitem">⏳ ${p.txt}</div>`).join('')
+    :'<div style="font-size:11px;color:var(--faint)">No pending commands.</div>';
+  const h=String(t/3600|0).padStart(2,'0'),m=String(t/60%60|0).padStart(2,'0'),s=String(t%60).padStart(2,'0');
+  $('clock').textContent=`T+${h}:${m}:${s}`;
+  renderFleet();
+}
+
+function renderFleet(){
+  $('fleet').innerHTML=robots.map(r=>{
+    const sig=degraded?'r':r.bat<25?'y':'g';
+    const sigT={g:'STRONG',y:'WEAK',r:'LOST'}[sig];
+    const batC=r.bat>50?'var(--ok)':r.bat>25?'var(--warn)':'var(--crit)';
+    return `<div class="rbt ${selRobot===r.n?'sel':''}" tabindex="0" role="button" aria-label="Robot ${r.n}, ${r.st}"
+      onclick="selRobot=selRobot==='${r.n}'?null:'${r.n}';renderFleet()" onkeydown="if(event.key==='Enter')this.click()">
+      <div class="ic">${r.ic}</div>
+      <div class="info"><div class="nm">${r.n}</div>
+        <div class="st">${r.st}${r.task?' → '+r.task.id:''}</div>
+        <div class="bar"><i style="width:${r.bat}%;background:${batC}"></i></div></div>
+      <span class="sig ${sig}">${sigT}</span></div>`;}).join('');
+}
+
+function renderSurvivors(){
+  const q=survivors.filter(s=>s.st!=='RESCUED').sort((a,b)=>priority(b)-priority(a));
+  $('survs').innerHTML=q.length?q.map(s=>`
+    <div class="surv" tabindex="0" role="button" aria-label="Survivor ${s.id}, ${s.sev}, priority ${priority(s)}"
+      onclick="selSurv=selSurv==='${s.id}'?null:'${s.id}';renderSurvivors()">
+      <div class="top"><span class="id">${s.id}</span>
+        <span class="sev ${s.sev[0].toLowerCase()}">${s.sev}</span></div>
+      <div class="meta"><span>Sector <b>${String.fromCharCode(65+(s.y/8|0))}-${s.x}</b></span>
+        <span>Waiting <b>${s.age}s</b></span>
+        <span class="pr">P=<b>${priority(s)}</b></span></div>
+      <div style="font-size:11px;color:var(--dim)">Status: <b style="color:${s.st==='ASSIGNED'?'var(--acc)':'var(--warn)'}">${s.st}</b>${s.robot?' · '+s.robot:''}</div>
+      ${s.st==='AWAITING'?`<button class="disp" onclick="event.stopPropagation();dispatch('${s.id}')">⚡ DISPATCH NEAREST ROBOT</button>`:''}
+    </div>`).join(''):'<div style="font-size:12px;color:var(--faint);padding:8px 0">No active survivors — robots still sweeping unexplored sectors…</div>';
+}
+
+/* ---------- CONTROLS ---------- */
+$('btnComms').onclick=()=>{degraded=!degraded;
+  toast(degraded?'📡 <b>UPLINK DEGRADED</b> — commands will queue & replay on restore':'📡 Uplink restored',degraded?'crit':'ok');
+  addLog(degraded?'Comms <b>degraded</b> — store & forward active':'Comms restored','warn');updateHUD();};
+$('btnPause').onclick=()=>{running=!running;$('btnPause').textContent=running?'⏸ Pause':'▶ Resume';
+  $('simPill').textContent=running?'SIM RUNNING':'PAUSED';$('simPill').className='pill '+(running?'ok':'bad');};
+$('btnReset').onclick=()=>{init();updateHUD();renderSurvivors();};
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();$('btnPause').click();}
+  if(e.key==='d'||e.key==='D')$('btnComms').click();});
+document.querySelectorAll('.mapwrap input[type=checkbox]').forEach(c=>c.onchange=()=>{});
+
+/* ---------- MAIN LOOP ---------- */
+fit();init();updateHUD();renderSurvivors();
+setInterval(()=>{if(running){tick();renderSurvivors();}},600);
+(function loop(){draw();requestAnimationFrame(loop);})();
+</script>
+</body>
+</html>
